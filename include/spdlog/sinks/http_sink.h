@@ -44,10 +44,18 @@ public:
           stop_flag_(false)
     {
         this->set_level(config_.level_threshold);
-        worker_thread_ = std::thread(&http_sink::run_worker_thred_, this);
+        worker_thread_ = std::thread(&http_sink::run_worker_thread_, this);
     }
 
-    ~http_sink() override = default;
+    ~http_sink() override
+    {
+        stop_flag_.store(true);
+        cv_.notify_all();
+        if (worker_thread_.joinable())
+        {
+            worker_thread_.join();
+        }
+    }
 
 protected:
     // Allows custom sink behavior
