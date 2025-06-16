@@ -4,10 +4,11 @@
 #include <spdlog/details/null_mutex.h>
 #include <spdlog/sinks/base_sink.h>
 
-#include <vector>
 #include <mutex>
-#include <string>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 #include <iostream> // TODO: Replace by proper endpoint
 
 // Simple http sink
