@@ -37,7 +37,7 @@ class http_sink : public spdlog::sinks::base_sink<Mutex>
 {
 public:
     explicit http_sink(http_sink_config config) 
-        : config_(move(std::move(config)))
+        : config_(std::move(config))
     {
     }
 
