@@ -4,9 +4,12 @@
 #include <spdlog/details/null_mutex.h>
 #include <spdlog/sinks/base_sink.h>
 
+#include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include <iostream> // TODO: Replace by proper endpoint
@@ -37,8 +40,11 @@ class http_sink : public spdlog::sinks::base_sink<Mutex>
 {
 public:
     explicit http_sink(http_sink_config config) 
-        : config_(std::move(config))
+        : config_(std::move(config)),
+          stop_flag_(false)
     {
+        this->set_level(config_.level_threshold);
+        worker_thread_ = std::thread(&http_sink::run_worker_thred_, this);
     }
 
     ~http_sink() override = default;
@@ -98,11 +104,27 @@ private:
         }
     }
 
+    void run_worker_thread_()
+    {
+        while (!stop_flag_.load())
+        {
+            std::unique_lock<std::mutex> lock(buffer_mutex_);
+            cv_.wait_for(lock, config_.flush_interval,
+                [this] { return stop_flag_.load(); });
+            lock.unlock();
+            send_batch_();
+        }
+    }
+
 private:
     http_sink_config config_;
 
     std::vector<std::string> buffer_;
     std::mutex buffer_mutex_;
+
+    std::thread worker_thread_;
+    std::atomic<bool> stop_flag_;
+    std::condition_variable cv_;
 };
 
 using http_sink_mt = http_sink<std::mutex>;
