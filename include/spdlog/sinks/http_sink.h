@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 #include <iostream> // TODO: Replace by proper endpoint
+#include <httplib.h>
 
 // Simple http sink
 // Connects to an endpoint and sends the formatted log.
@@ -83,7 +84,8 @@ private:
        
         {
             std::lock_guard<std::mutex> lock(buffer_mutex_);
-            if (buffer_.empty()) return;
+            if (buffer_.empty())
+                return;
             batch.swap(buffer_);
         }
 
@@ -97,11 +99,43 @@ private:
 
         try
         {
-            // TODO: Replace later with real http POST
-            std::cout << "[httt_sink] Posting to " << config_.endpoint_url << ":\n"
-                      << payload << std::endl;
+            std::string url = config_.endpoint_url;
+            const std::string http_prefix = "http://";
 
-            throw std::runtime_error("Simulated network failure");
+            if (url.find(http_prefix) != 0)
+            {
+                throw std::runtime_error("Only http:// endpoints supported");
+            }
+
+            url.erase(0, http_prefix.size());
+
+            //split host [:port] and path
+            size_t slash_pos = url.find('/');
+            std::string host_port =
+                (slash_pos == std::string::npos) ? url : url.substr(0, slash_pos);
+            std::string path = (slash_pos == std::string::npos) ? "/" : url.substr(slash_pos);
+
+
+            // extract host and optional port
+            std::string host = host_port;
+            int port = 80;
+            size_t colon_pos = host_port.find(':');
+            if (colon_pos != std::string::npos)
+            {
+                host = host_port.substr(0, colon_pos);
+                port = std::stoi(host_port.substr(colon_pos + 1));
+            }
+
+            httplib::Client client(host.c_str(), port);
+            client.set_connection_timeout(5, 0); // timeout 5s
+
+            auto res = client.Post(path.c_str(), payload, "text/plain");
+
+            if (!res || res->status != 200)
+            {
+                throw std::runtime_error("HTTP POST failed or returned non-200 status");
+            }
+
         }
         catch (const std::exception& ex)
         {
