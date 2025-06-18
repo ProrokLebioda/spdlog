@@ -1,3 +1,64 @@
+## Preamble, http_sink
+This fork contains http_sink. It is somewhat based on tcp_sink.
+It also is header-only allowing ease of include.
+Underneath it uses vector as a buffer. This is a fast structure, although when not enough capacity reserved resizing causes performance drop.
+Section #Performance Considerations explains a bit more, but for thread safety simple mutexes are used.
+
+# Performance Considerations
+Log messages are buffered internally and sent in batches based on a configurable flush interval. This reduces the overhead of sending individual HTTP requests per message and helps amortize network latency and I/O costs.
+The sink uses a std::mutex to guard access to the internal buffer, making it thread-safe for concurrent loggers. However, under high concurrency, mutex contention may become a bottleneck if many threads log at high frequency.
+The flush frequency determines the trade-off between latency and throughput. A shorter interval reduces delay but increases HTTP traffic; a longer interval improves throughput by sending larger batches but adds latency.
+The actual scalability also depends on the performance of the target HTTP server and the network bandwidth. Under heavy logging loads, server-side queuing, backpressure, or rate limits may affect overall reliability and performance.
+Currently, logs are buffered indefinitely until flush. For production use, consider adding limits on buffer size and strategies for handling overflow (e.g., dropping oldest logs or blocking).
+In summary: performance might buckle under too much load/stress. Introducing lock-free queue, async flush and retry logic might help with this sink.
+
+# Dependencies
+Custom http_sink uses httplib (header based) and it is included in project (configured to build with it)
+
+# Build
+in Root:
+mkdir build
+cd build
+cmake .. -DSPDLOG_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
+
+
+# Unit tests
+To build tests (start in root):
+cmake .. -DSPDLOG_BUILD_TESTS=ON
+cmake --build . -j
+ctest --output-on-failure -C [Debug/Release] # This might show failed tests (but afterwards run command below in spdlog/build/tests/[Debug/Release]
+./spdlog-utests "[http_sink]" -s
+
+#### How to use http_sink, example code
+Simply include appropriate header
+
+```c++
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/http_sink.h>
+#include <memory>
+
+int main(int argc, char* argv[])
+{
+    using namespace spdlog::sinks;
+
+    const std::string endpoint_ = "http://localhost:8080/logs";
+    http_sink_config http_sink_config_(endpoint_, std::chrono::seconds(5), spdlog::level::info);
+
+    auto sink = std::make_shared<http_sink_mt>(http_sink_config_);
+    auto logger = std::make_shared<spdlog::logger>("http_logger", sink);
+    spdlog::register_logger(logger);
+    logger->info("Testing HTTP sink with level enum");
+    logger->warn("This is a warning message");
+    logger->error("This is an error message");
+
+    std::this_thread::sleep_for(std::chrono::seconds(180));
+    return 0;
+}
+```
+
+
+
+
 # spdlog
 
  
