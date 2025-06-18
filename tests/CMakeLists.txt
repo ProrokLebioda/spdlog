@@ -45,11 +45,14 @@ set(SPDLOG_UTESTS_SOURCES
     test_backtrace.cpp
     test_create_dir.cpp
     test_custom_callbacks.cpp
+	test_http_sink.cpp
     test_cfg.cpp
     test_time_point.cpp
     test_stopwatch.cpp
     test_circular_q.cpp
-    test_bin_to_hex.cpp)
+    test_bin_to_hex.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../include/spdlog/sinks/http_sink.h
+	)
 
 if(NOT SPDLOG_NO_EXCEPTIONS)
     list(APPEND SPDLOG_UTESTS_SOURCES test_errors.cpp)
@@ -69,6 +72,9 @@ function(spdlog_prepare_test test_target spdlog_lib)
         target_link_libraries(${test_target} PRIVATE ${systemd_LIBRARIES})
     endif()
     target_link_libraries(${test_target} PRIVATE Catch2::Catch2WithMain)
+	target_include_directories(${test_target} PRIVATE 
+		${CMAKE_CURRENT_LIST_DIR}/../external/httplib/include
+	)
     if(SPDLOG_SANITIZE_ADDRESS)
         spdlog_enable_addr_sanitizer(${test_target})
     elseif(SPDLOG_SANITIZE_THREAD)
